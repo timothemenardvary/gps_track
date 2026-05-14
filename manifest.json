@@ -1,0 +1,17 @@
+{
+  "name": "GPS Track Viewer",
+  "short_name": "GPS Track",
+  "description": "Visualisez vos points GPS depuis un fichier texte",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230a0f1e'/><circle cx='96' cy='80' r='28' fill='none' stroke='%2300d4ff' stroke-width='8'/><circle cx='96' cy='80' r='10' fill='%2300d4ff'/><path d='M96 108 L96 160' stroke='%2300d4ff' stroke-width='8' stroke-linecap='round'/><circle cx='60' cy='148' r='6' fill='%2300d4ff' opacity='0.5'/><circle cx='130' cy='135' r='6' fill='%2300d4ff' opacity='0.5'/><circle cx='75' cy='162' r='4' fill='%2300d4ff' opacity='0.3'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -12,7 +12,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <style>
     :root {
@@ -204,7 +207,6 @@
 
     /* Date filter */
     #date-filter {
-      display: none;
       padding: 10px 20px 0;
       gap: 8px;
       overflow-x: auto;
@@ -403,9 +405,12 @@
 
     L.control.zoom({ position: 'topright' }).addTo(map);
 
+    // Fix Safari iOS : force recalcul des dimensions après le paint initial
+    setTimeout(() => map.invalidateSize(), 300);
+
     // ── STATE ─────────────────────────────────────────────────────────
     let allPoints = [];
-    let markers = [];
+    let clusterGroup = null;
     let polyline = null;
     let currentDate = 'all';
 
@@ -436,72 +441,83 @@
       return { points, errors };
     }
 
+    // ── DECIMATION ────────────────────────────────────────────────────
+    // Réduit les points pour la polyline si trop nombreux
+    function decimateForPolyline(points, maxPoints = 4000) {
+      if (points.length <= maxPoints) return points;
+      const step = Math.ceil(points.length / maxPoints);
+      const result = points.filter((_, i) => i % step === 0);
+      // Toujours inclure le dernier point
+      if (result[result.length - 1] !== points[points.length - 1]) {
+        result.push(points[points.length - 1]);
+      }
+      return result;
+    }
+
     // ── RENDER ────────────────────────────────────────────────────────
     function renderPoints(points) {
       // Clear
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
+      if (clusterGroup) { map.removeLayer(clusterGroup); clusterGroup = null; }
       if (polyline) { map.removeLayer(polyline); polyline = null; }
 
       if (!points.length) return;
 
-      const latlngs = points.map(p => [p.lat, p.lon]);
-
-      // Polyline
-      polyline = L.polyline(latlngs, {
+      // Polyline décimée pour la perf
+      const polyPoints = decimateForPolyline(points);
+      polyline = L.polyline(polyPoints.map(p => [p.lat, p.lon]), {
         color: '#00d4ff',
-        weight: 2.5,
-        opacity: 0.6,
+        weight: 2,
+        opacity: 0.5,
         dashArray: '4 6',
       }).addTo(map);
 
-      // Markers
+      // Cluster group — chargement par lots non-bloquant
+      clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 40,
+        disableClusteringAtZoom: 16,
+        spiderfyOnMaxZoom: true,
+        chunkedLoading: true,
+        chunkSize: 300,
+        chunkDelay: 20,
+      });
+
+      const total = points.length;
       points.forEach((p, i) => {
         const isFirst = i === 0;
-        const isLast  = i === points.length - 1;
+        const isLast  = i === total - 1;
         const cls = isFirst ? 'gps-dot first' : isLast ? 'gps-dot last' : 'gps-dot';
+        const sz = isFirst || isLast ? 14 : 10;
 
         const icon = L.divIcon({
           className: '',
           html: `<div class="${cls}"></div>`,
-          iconSize: isFirst || isLast ? [14, 14] : [10, 10],
-          iconAnchor: isFirst || isLast ? [7, 7] : [5, 5],
+          iconSize: [sz, sz],
+          iconAnchor: [sz/2, sz/2],
         });
 
-        const altStr = p.alt !== null && !isNaN(p.alt)
-          ? p.alt.toFixed(1) + ' m'
-          : '—';
+        const altStr = p.alt !== null && !isNaN(p.alt) ? p.alt.toFixed(1) + ' m' : '—';
 
-        const popup = L.popup({ maxWidth: 240 }).setContent(`
-          <div class="popup-inner">
-            <div class="popup-date">${p.date}</div>
-            <div class="popup-row">
-              <span class="popup-key">Latitude</span>
-              <span class="popup-val">${p.lat.toFixed(6)}</span>
-            </div>
-            <div class="popup-row">
-              <span class="popup-key">Longitude</span>
-              <span class="popup-val">${p.lon.toFixed(6)}</span>
-            </div>
-            <div class="popup-row">
-              <span class="popup-key">Altitude</span>
-              <span class="popup-val">${altStr}</span>
-            </div>
-            <div class="popup-row">
-              <span class="popup-key">Point</span>
-              <span class="popup-val">#${p.index}</span>
-            </div>
-          </div>
-        `);
-
-        const m = L.marker([p.lat, p.lon], { icon })
-          .bindPopup(popup)
-          .addTo(map);
-        markers.push(m);
+        clusterGroup.addLayer(
+          L.marker([p.lat, p.lon], { icon }).bindPopup(`
+            <div class="popup-inner">
+              <div class="popup-date">${p.date}</div>
+              <div class="popup-row"><span class="popup-key">Latitude</span><span class="popup-val">${p.lat.toFixed(6)}</span></div>
+              <div class="popup-row"><span class="popup-key">Longitude</span><span class="popup-val">${p.lon.toFixed(6)}</span></div>
+              <div class="popup-row"><span class="popup-key">Altitude</span><span class="popup-val">${altStr}</span></div>
+              <div class="popup-row"><span class="popup-key">Point</span><span class="popup-val">#${p.index}</span></div>
+            </div>`, { maxWidth: 240 })
+        );
       });
 
-      // Fit bounds
-      map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+      map.addLayer(clusterGroup);
+
+      // Fit bounds différé
+      setTimeout(() => {
+        try {
+          map.invalidateSize();
+          map.fitBounds(polyline.getBounds(), { padding: [40, 40], animate: false });
+        } catch(e) { console.warn('fitBounds error', e); }
+      }, 300);
     }
 
     // ── STATS BAR ─────────────────────────────────────────────────────
@@ -558,9 +574,11 @@
       const file = e.target.files[0];
       if (!file) return;
 
-      document.getElementById('loading').classList.add('show');
+      const loading = document.getElementById('loading');
+      loading.classList.add('show');
 
-      await new Promise(r => setTimeout(r, 50)); // let UI update
+      // Laisse le temps au spinner de s'afficher avant de bloquer le thread
+      await new Promise(r => setTimeout(r, 100));
 
       try {
         const text = await file.text();
@@ -568,35 +586,37 @@
 
         if (!points.length) {
           showToast('❌ Aucun point valide trouvé dans le fichier');
+          loading.classList.remove('show');
+          e.target.value = '';
           return;
         }
 
         allPoints = points;
         currentDate = 'all';
 
+        renderPoints(allPoints);
+        updateStats(allPoints);
+
         // Hide placeholder & upload
         document.getElementById('map-placeholder').style.display = 'none';
         document.getElementById('upload-zone').style.display = 'none';
         document.getElementById('btn-fit').style.display = 'flex';
         document.getElementById('btn-reset').style.display = 'flex';
-
-        // Header
         document.getElementById('header-sub').textContent = file.name.toUpperCase();
 
-        renderPoints(allPoints);
-        updateStats(allPoints);
-
         const msg = errors > 0
-          ? `✓ ${points.length} points chargés (${errors} ignorés)`
+          ? `✓ ${points.length} points (${errors} ignorés)`
           : `✓ ${points.length} points chargés`;
         showToast(msg);
 
       } catch (err) {
-        showToast('❌ Erreur de lecture du fichier');
+        showToast('❌ Erreur : ' + err.message);
         console.error(err);
       } finally {
-        document.getElementById('loading').classList.remove('show');
+        loading.classList.remove('show');
         e.target.value = '';
+        // Forcer Leaflet à recalculer la taille après changement de layout
+        setTimeout(() => map.invalidateSize(), 200);
       }
     });
 
@@ -606,8 +626,7 @@
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
+      if (clusterGroup) { map.removeLayer(clusterGroup); clusterGroup = null; }
       if (polyline) { map.removeLayer(polyline); polyline = null; }
       allPoints = [];
       currentDate = 'all';

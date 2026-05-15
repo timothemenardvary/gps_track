@@ -4,656 +4,563 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="GPS Track">
-  <meta name="theme-color" content="#0a0f1e">
-  <title>GPS Track Viewer</title>
+  <meta name="theme-color" content="#F2F2F7">
+  <title>GPS Track</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
   <style>
     :root {
-      --bg: #0a0f1e;
-      --surface: #111827;
-      --border: #1e2d45;
-      --accent: #00d4ff;
-      --accent2: #7c3aed;
-      --text: #e2e8f0;
-      --muted: #64748b;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --bg: #F2F2F7;
+      --surface: #FFFFFF;
+      --separator: rgba(60,60,67,0.12);
+      --label: #000000;
+      --label2: rgba(60,60,67,0.6);
+      --label3: rgba(60,60,67,0.3);
+      --blue: #007AFF;
+      --green: #34C759;
+      --orange: #FF9500;
+      --red: #FF3B30;
+      --fill: rgba(120,120,128,0.12);
+      --safe-top: env(safe-area-inset-top, 44px);
+      --safe-bottom: env(safe-area-inset-bottom, 34px);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000;
+        --surface: #1C1C1E;
+        --separator: rgba(84,84,88,0.6);
+        --label: #FFF;
+        --label2: rgba(235,235,245,0.6);
+        --label3: rgba(235,235,245,0.18);
+        --fill: rgba(118,118,128,0.24);
+      }
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
     body {
-      font-family: 'Syne', sans-serif;
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
       background: var(--bg);
-      color: var(--text);
+      color: var(--label);
       height: 100dvh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
 
-    /* ── HEADER ── */
-    header {
+    /* NAV */
+    nav {
+      flex-shrink: 0;
+      background: rgba(242,242,247,0.85);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 0.5px solid var(--separator);
+      padding: calc(var(--safe-top) + 8px) 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       position: relative;
-      z-index: 100;
-      padding: calc(var(--safe-top) + 12px) 20px 12px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-shrink: 0;
+      z-index: 200;
     }
-
-    .logo {
-      width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    @media (prefers-color-scheme: dark) {
+      nav { background: rgba(28,28,30,0.85); }
     }
-    .logo svg { width: 20px; height: 20px; }
-
-    .header-text h1 {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      line-height: 1;
-      color: #fff;
-    }
-    .header-text p {
-      font-family: 'Space Mono', monospace;
-      font-size: 10px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .header-actions { margin-left: auto; display: flex; gap: 8px; }
-
-    .btn-icon {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      font-size: 16px;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .btn-icon:active { background: var(--border); }
-
-    /* ── MAP ── */
-    #map {
-      flex: 1;
-      position: relative;
-      z-index: 1;
-    }
-
-    /* Leaflet dark override */
-    .leaflet-tile { filter: brightness(0.85) saturate(0.7) hue-rotate(180deg) invert(1); }
-    .leaflet-container { background: var(--bg); }
-
-    /* Custom marker */
-    .gps-dot {
-      width: 10px; height: 10px;
-      background: var(--accent);
-      border: 2px solid #fff;
-      border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent), 0 0 20px rgba(0,212,255,0.4);
-    }
-    .gps-dot.first {
-      width: 14px; height: 14px;
-      background: #22c55e;
-      box-shadow: 0 0 10px #22c55e, 0 0 24px rgba(34,197,94,0.5);
-    }
-    .gps-dot.last {
-      width: 14px; height: 14px;
-      background: #f97316;
-      box-shadow: 0 0 10px #f97316, 0 0 24px rgba(249,115,22,0.5);
-    }
-
-    /* ── BOTTOM PANEL ── */
-    #panel {
-      position: relative;
-      z-index: 100;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 14px 20px calc(var(--safe-bottom) + 14px);
-      flex-shrink: 0;
-      transition: all 0.3s;
-    }
-
-    /* Upload state */
-    #upload-zone {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 0;
-    }
-
-    #upload-zone p {
-      font-size: 13px;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .btn-upload {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border: none;
-      border-radius: 14px;
-      color: #fff;
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: 15px;
-      padding: 14px 28px;
-      cursor: pointer;
-      width: 100%;
-      max-width: 320px;
-      justify-content: center;
-      letter-spacing: 0.3px;
-      box-shadow: 0 4px 20px rgba(0,212,255,0.25);
-      transition: opacity 0.2s, transform 0.1s;
-    }
-    .btn-upload:active { opacity: 0.85; transform: scale(0.98); }
-
-    input[type="file"] { display: none; }
-
-    /* Stats state */
-    #stats-bar {
-      display: none;
-      gap: 0;
-      align-items: stretch;
-    }
-
-    .stat {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 8px;
-      border-right: 1px solid var(--border);
-    }
-    .stat:last-child { border-right: none; }
-
-    .stat-value {
-      font-family: 'Space Mono', monospace;
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--accent);
-      line-height: 1;
-    }
-    .stat-label {
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--muted);
-    }
-
-    /* Date filter */
-    #date-filter {
-      padding: 10px 20px 0;
-      gap: 8px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      flex-shrink: 0;
-    }
-    #date-filter::-webkit-scrollbar { display: none; }
-
-    .date-chip {
-      flex-shrink: 0;
-      padding: 5px 14px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.2s;
+    .nav-title {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.4px;
+      position: absolute;
+      left: 50%; transform: translateX(-50%);
+      max-width: 55%;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .date-chip.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--bg);
-      font-weight: 700;
+    .nav-btn {
+      background: none; border: none;
+      font-size: 17px; color: var(--blue);
+      cursor: pointer; padding: 4px 8px;
+      display: flex; align-items: center; gap: 4px;
+      font-family: inherit;
+      min-width: 44px; min-height: 44px; justify-content: center;
     }
+    .nav-btn:active { opacity: 0.4; }
+    .nav-btn.red { color: var(--red); }
+    .nav-btn svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 
-    /* ── POPUP ── */
+    /* MAP */
+    #map { flex:1; position:relative; z-index:1; }
+
+    .gps-dot {
+      width:8px; height:8px;
+      background: var(--blue);
+      border: 1.5px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .gps-dot.start { background:var(--green); width:13px; height:13px; border-width:2px; }
+    .gps-dot.end   { background:var(--orange); width:13px; height:13px; border-width:2px; }
+
+    /* Popup */
     .leaflet-popup-content-wrapper {
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-      padding: 0;
-      overflow: hidden;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+      padding: 0; overflow: hidden; border: none;
     }
-    .leaflet-popup-content {
-      margin: 0;
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      color: var(--text);
-      min-width: 200px;
-    }
-    .leaflet-popup-tip { background: var(--surface); }
-    .leaflet-popup-close-button { color: var(--muted) !important; right: 10px !important; top: 8px !important; }
+    .leaflet-popup-content { margin:0; min-width:190px; }
+    .leaflet-popup-tip-container { display:none; }
+    .leaflet-popup-close-button { color:var(--label3) !important; font-size:20px !important; right:12px !important; top:10px !important; }
 
-    .popup-inner { padding: 14px 16px; }
-    .popup-date {
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--accent);
-      margin-bottom: 8px;
-    }
-    .popup-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 3px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .popup-row:last-child { border-bottom: none; }
-    .popup-key { color: var(--muted); }
-    .popup-val { color: #fff; font-weight: 700; }
+    .pop { padding: 14px 16px 16px; }
+    .pop-date { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--label2); margin-bottom:10px; }
+    .pop-row { display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; border-bottom:0.5px solid var(--separator); font-size:15px; }
+    .pop-row:last-child { border-bottom:none; padding-bottom:0; }
+    .pop-k { color:var(--label2); }
+    .pop-v { font-weight:500; font-variant-numeric:tabular-nums; }
 
-    /* ── EMPTY STATE ── */
-    #map-placeholder {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      pointer-events: none;
-      z-index: 2;
-    }
-    #map-placeholder svg { opacity: 0.08; }
-    #map-placeholder p {
-      font-family: 'Space Mono', monospace;
-      font-size: 12px;
-      color: var(--muted);
-      opacity: 0.5;
-    }
-
-    /* ── TOAST ── */
-    #toast {
-      position: fixed;
-      top: calc(var(--safe-top) + 70px);
-      left: 50%; transform: translateX(-50%);
+    /* SHEET */
+    #sheet {
+      flex-shrink: 0;
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 10px 18px;
-      font-size: 13px;
-      color: var(--text);
-      z-index: 999;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
-      white-space: nowrap;
+      border-top: 0.5px solid var(--separator);
+      z-index: 200;
     }
-    #toast.show { opacity: 1; }
 
-    /* ── LOADING ── */
+    #upload-zone {
+      padding: 16px 16px calc(var(--safe-bottom) + 8px);
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .upload-hint { font-size:13px; color:var(--label2); text-align:center; }
+
+    .btn-primary {
+      width:100%; max-width:360px; padding:14px;
+      background:var(--blue); color:#fff; border:none;
+      border-radius:14px; font-size:17px; font-weight:600;
+      font-family:inherit; cursor:pointer; letter-spacing:-0.3px;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:active { opacity:0.75; }
+    input[type="file"] { display:none; }
+
+    #stats-loaded { display:none; }
+
+    .stats-row {
+      display:flex;
+      border-bottom: 0.5px solid var(--separator);
+    }
+    .stat-cell {
+      flex:1; display:flex; flex-direction:column; align-items:center;
+      padding:12px 4px 10px;
+      border-right: 0.5px solid var(--separator);
+      gap:2px;
+    }
+    .stat-cell:last-child { border-right:none; }
+    .stat-num { font-size:19px; font-weight:600; letter-spacing:-0.5px; font-variant-numeric:tabular-nums; }
+    .stat-lbl { font-size:10px; color:var(--label2); text-align:center; line-height:1.2; }
+
+    /* Date range */
+    #date-range {
+      display:flex; align-items:flex-end; gap:8px;
+      padding: 10px 16px calc(var(--safe-bottom) + 10px);
+    }
+    .df { flex:1; display:flex; flex-direction:column; gap:4px; }
+    .df label { font-size:11px; font-weight:500; color:var(--label2); text-transform:uppercase; letter-spacing:0.4px; }
+    .df input[type="date"] {
+      width:100%; padding:8px 10px;
+      background:var(--fill); border:none; border-radius:8px;
+      font-size:15px; font-family:inherit; color:var(--label);
+      -webkit-appearance:none; outline:none;
+    }
+    .df input[type="date"]:focus { outline:2px solid var(--blue); outline-offset:-1px; }
+    .date-arrow { color:var(--label3); font-size:18px; padding-bottom:8px; flex-shrink:0; }
+
+    .btn-ok {
+      padding:0 16px; height:37px;
+      background:var(--blue); color:#fff; border:none;
+      border-radius:8px; font-size:15px; font-weight:600;
+      font-family:inherit; cursor:pointer; flex-shrink:0;
+      transition:opacity 0.15s;
+    }
+    .btn-ok:active { opacity:0.7; }
+    .btn-x {
+      padding:0 10px; height:37px;
+      background:var(--fill); color:var(--label2); border:none;
+      border-radius:8px; font-size:15px;
+      font-family:inherit; cursor:pointer; flex-shrink:0;
+      transition:opacity 0.15s; display:none;
+    }
+    .btn-x:active { opacity:0.7; }
+
+    /* EMPTY */
+    #map-empty {
+      position:absolute; inset:0; display:flex;
+      flex-direction:column; align-items:center; justify-content:center;
+      gap:10px; pointer-events:none; z-index:2; background:var(--bg);
+    }
+    #map-empty svg { opacity:0.13; width:56px; height:56px; }
+    #map-empty p { font-size:15px; color:var(--label2); }
+
+    /* LOADING */
     #loading {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(10,15,30,0.7);
-      backdrop-filter: blur(4px);
-      z-index: 500;
-      align-items: center;
-      justify-content: center;
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.3);
+      backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+      z-index:999; flex-direction:column; align-items:center; justify-content:center;
     }
-    #loading.show { display: flex; }
+    #loading.show { display:flex; }
+    .load-card {
+      background:var(--surface); border-radius:16px;
+      padding:24px 28px; display:flex; flex-direction:column;
+      align-items:center; gap:14px; min-width:210px;
+      box-shadow:0 8px 32px rgba(0,0,0,0.2);
+    }
     .spinner {
-      width: 40px; height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      width:30px; height:30px;
+      border:3px solid var(--separator);
+      border-top-color:var(--blue);
+      border-radius:50%;
+      animation:spin 0.7s linear infinite;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .load-txt { font-size:15px; color:var(--label2); }
+    .load-pct { font-size:13px; color:var(--label3); font-variant-numeric:tabular-nums; }
+
+    /* Progress */
+    #prog-wrap { height:2px; background:var(--fill); overflow:hidden; }
+    #prog-bar { height:2px; background:var(--blue); width:0%; transition:width 0.1s; }
+
+    /* TOAST */
+    #toast {
+      position:fixed; bottom:calc(var(--safe-bottom) + 96px);
+      left:50%; transform:translateX(-50%);
+      background:rgba(50,50,50,0.88);
+      backdrop-filter:blur(12px);
+      color:#fff; border-radius:20px;
+      padding:10px 20px; font-size:14px; font-weight:500;
+      z-index:1000; opacity:0; transition:opacity 0.25s;
+      pointer-events:none; white-space:nowrap;
+      max-width:calc(100vw - 32px);
+    }
+    #toast.show { opacity:1; }
   </style>
 </head>
 <body>
 
-  <!-- HEADER -->
-  <header>
-    <div class="logo">
-      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="8" r="4" stroke="white" stroke-width="1.5"/>
-        <circle cx="10" cy="8" r="1.5" fill="white"/>
-        <path d="M10 12 C10 12 5 17 5 19" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
-        <path d="M10 12 C10 12 15 17 15 19" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
-        <path d="M10 12 L10 19" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <div class="header-text">
-      <h1>GPS Track</h1>
-      <p id="header-sub">AUCUN FICHIER CHARGÉ</p>
-    </div>
-    <div class="header-actions">
-      <button class="btn-icon" id="btn-fit" title="Centrer la carte" style="display:none">⊕</button>
-      <button class="btn-icon" id="btn-reset" title="Réinitialiser" style="display:none">✕</button>
-    </div>
-  </header>
+<nav>
+  <button class="nav-btn red" id="btn-reset" style="display:none" aria-label="Réinitialiser">
+    <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.33"/></svg>
+  </button>
+  <span class="nav-title" id="nav-title">GPS Track</span>
+  <button class="nav-btn" id="btn-fit" style="display:none" aria-label="Centrer">
+    <svg viewBox="0 0 24 24"><path d="M3 3h5M3 3v5M21 3h-5M21 3v5M3 21h5M3 21v-5M21 21h-5M21 21v-5"/></svg>
+  </button>
+  <div style="min-width:44px" id="nav-ph"></div>
+</nav>
 
-  <!-- DATE FILTER -->
-  <div id="date-filter" style="display:none; padding: 10px 20px 0; overflow-x:auto; display:none; gap:8px; flex-shrink:0;"></div>
+<div id="map">
+  <div id="map-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+      <circle cx="12" cy="9" r="2.5"/>
+    </svg>
+    <p>Aucun fichier chargé</p>
+  </div>
+</div>
 
-  <!-- MAP -->
-  <div id="map">
-    <div id="map-placeholder">
-      <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
-        <circle cx="60" cy="48" r="22" stroke="white" stroke-width="4"/>
-        <circle cx="60" cy="48" r="8" fill="white"/>
-        <path d="M60 70 L60 100" stroke="white" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="38" cy="96" r="5" fill="white" opacity="0.4"/>
-        <circle cx="82" cy="88" r="5" fill="white" opacity="0.4"/>
-        <circle cx="50" cy="108" r="3" fill="white" opacity="0.2"/>
-      </svg>
-      <p>Chargez un fichier pour commencer</p>
-    </div>
+<div id="sheet">
+  <!-- Upload -->
+  <div id="upload-zone">
+    <p class="upload-hint">Format : date;lat;lon;altitude</p>
+    <button class="btn-primary" onclick="document.getElementById('fi').click()">
+      Ouvrir un fichier GPS
+    </button>
+    <input type="file" id="fi" accept=".txt,.csv,.log">
   </div>
 
-  <!-- PANEL -->
-  <div id="panel">
-    <div id="upload-zone">
-      <p>Format : date;lat;lon;altitude</p>
-      <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
-        <span>📂</span> Ouvrir un fichier GPS
-      </button>
-      <input type="file" id="fileInput" accept=".txt,.csv,.log">
+  <!-- Loaded -->
+  <div id="stats-loaded">
+    <div id="prog-wrap"><div id="prog-bar"></div></div>
+    <div class="stats-row">
+      <div class="stat-cell"><span class="stat-num" id="s-pts">—</span><span class="stat-lbl">Points</span></div>
+      <div class="stat-cell"><span class="stat-num" id="s-days">—</span><span class="stat-lbl">Jours</span></div>
+      <div class="stat-cell"><span class="stat-num" id="s-amin">—</span><span class="stat-lbl">Alt. min m</span></div>
+      <div class="stat-cell"><span class="stat-num" id="s-amax">—</span><span class="stat-lbl">Alt. max m</span></div>
     </div>
-    <div id="stats-bar" style="display:none; gap:0; align-items:stretch;"></div>
+    <div id="date-range">
+      <div class="df">
+        <label for="d-from">Du</label>
+        <input type="date" id="d-from">
+      </div>
+      <div class="date-arrow">→</div>
+      <div class="df">
+        <label for="d-to">Au</label>
+        <input type="date" id="d-to">
+      </div>
+      <button class="btn-x" id="btn-x">✕</button>
+      <button class="btn-ok" id="btn-ok">OK</button>
+    </div>
   </div>
+</div>
 
-  <!-- TOAST -->
-  <div id="toast"></div>
+<div id="loading">
+  <div class="load-card">
+    <div class="spinner"></div>
+    <div class="load-txt" id="load-txt">Lecture…</div>
+    <div class="load-pct" id="load-pct"></div>
+  </div>
+</div>
 
-  <!-- LOADING -->
-  <div id="loading"><div class="spinner"></div></div>
+<div id="toast"></div>
 
-  <script>
-    // ── MAP INIT ──────────────────────────────────────────────────────
-    const map = L.map('map', {
-      zoomControl: false,
-      attributionControl: false,
-    }).setView([46.5, 2.3], 5);
+<script>
+  // ── MAP ───────────────────────────────────────────────────────────
+  const map = L.map('map', { zoomControl:false, attributionControl:false })
+    .setView([46.5, 2.3], 5);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+  L.control.zoom({ position:'bottomright' }).addTo(map);
+  setTimeout(() => map.invalidateSize(), 300);
+
+  // ── STATE ─────────────────────────────────────────────────────────
+  let allPts = [], filtered = [];
+  let dateMin = '', dateMax = '';
+  let layers = { line: null, start: null, end: null, temp: null };
+
+  // ── CHUNKED PARSER ────────────────────────────────────────────────
+  async function parseChunked(file) {
+    const CHUNK = 256 * 1024; // 256 Ko
+    const pts = []; let errors = 0, leftover = '', lineN = 0, offset = 0;
+    const total = file.size;
+
+    while (offset < total) {
+      const text = await file.slice(offset, offset + CHUNK).text();
+      offset += CHUNK;
+
+      const pct = Math.min(100, Math.round(offset / total * 100));
+      document.getElementById('prog-bar').style.width = pct + '%';
+      document.getElementById('load-pct').textContent =
+        `${pct}% · ${pts.length.toLocaleString('fr')} points`;
+
+      const block = leftover + text;
+      const nl = block.lastIndexOf('\n');
+      leftover = nl >= 0 ? block.slice(nl + 1) : block;
+      const lines = (nl >= 0 ? block.slice(0, nl) : '').split('\n');
+
+      for (const raw of lines) {
+        lineN++;
+        const line = raw.trim();
+        if (!line) continue;
+        const p = line.split(';');
+        if (p.length < 3) { errors++; continue; }
+        const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
+        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) { errors++; continue; }
+        const alt = p[3] ? parseFloat(p[3].replace(',', '.')) : null;
+        pts.push({ date: p[0].trim(), lat, lon, alt: (!alt || isNaN(alt)) ? null : alt, n: lineN });
+      }
+
+      // Yield toutes les 256 Ko pour garder l'UI réactive
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    // Dernier fragment
+    if (leftover.trim()) {
+      const p = leftover.trim().split(';');
+      if (p.length >= 3) {
+        const lat = parseFloat(p[1]), lon = parseFloat(p[2]);
+        if (!isNaN(lat) && !isNaN(lon))
+          pts.push({ date: p[0].trim(), lat, lon, alt: p[3] ? parseFloat(p[3].replace(',','.')) : null, n: ++lineN });
+      }
+    }
+
+    return { pts, errors };
+  }
+
+  // ── DECIMATE ──────────────────────────────────────────────────────
+  function decimate(pts, max = 3000) {
+    if (pts.length <= max) return pts;
+    const step = pts.length / max;
+    const out = Array.from({ length: max }, (_, i) => pts[Math.round(i * step)]);
+    out[out.length - 1] = pts[pts.length - 1];
+    return out;
+  }
+
+  // ── MARKER ────────────────────────────────────────────────────────
+  function mkMarker(p, cls) {
+    const sz = cls === 'gps-dot' ? 8 : 13;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="gps-dot ${cls === 'gps-dot' ? '' : cls}"></div>`,
+      iconSize: [sz, sz], iconAnchor: [sz/2, sz/2],
+    });
+    const a = p.alt !== null ? p.alt.toFixed(1) + ' m' : '—';
+    return L.marker([p.lat, p.lon], { icon }).bindPopup(
+      `<div class="pop">
+        <div class="pop-date">${p.date}</div>
+        <div class="pop-row"><span class="pop-k">Latitude</span><span class="pop-v">${p.lat.toFixed(6)}</span></div>
+        <div class="pop-row"><span class="pop-k">Longitude</span><span class="pop-v">${p.lon.toFixed(6)}</span></div>
+        <div class="pop-row"><span class="pop-k">Altitude</span><span class="pop-v">${a}</span></div>
+        <div class="pop-row"><span class="pop-k">Ligne</span><span class="pop-v">#${p.n}</span></div>
+      </div>`, { maxWidth:240, closeButton:true }
+    );
+  }
+
+  // ── RENDER ────────────────────────────────────────────────────────
+  function clearLayers() {
+    ['line','start','end','temp'].forEach(k => {
+      if (layers[k]) { map.removeLayer(layers[k]); layers[k] = null; }
+    });
+  }
+
+  function render(pts) {
+    clearLayers();
+    if (!pts.length) return;
+
+    const slim = decimate(pts, 3000);
+    layers.line = L.polyline(slim.map(p => [p.lat, p.lon]), {
+      color: '#007AFF', weight: 2.5, opacity: 0.7,
     }).addTo(map);
 
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    // Seuls début et fin ont un marker permanent (économise la mémoire)
+    layers.start = mkMarker(pts[0], 'start').addTo(map);
+    layers.end   = mkMarker(pts[pts.length - 1], 'end').addTo(map);
 
-    // Fix Safari iOS : force recalcul des dimensions après le paint initial
-    setTimeout(() => map.invalidateSize(), 300);
-
-    // ── STATE ─────────────────────────────────────────────────────────
-    let allPoints = [];
-    let clusterGroup = null;
-    let polyline = null;
-    let currentDate = 'all';
-
-    // ── PARSE ─────────────────────────────────────────────────────────
-    function parseFile(text) {
-      const lines = text.trim().split('\n');
-      const points = [];
-      let errors = 0;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const parts = line.split(';');
-        if (parts.length < 3) { errors++; continue; }
-
-        const date = parts[0].trim();
-        const lat  = parseFloat(parts[1].replace(',', '.'));
-        const lon  = parseFloat(parts[2].replace(',', '.'));
-        const alt  = parts[3] ? parseFloat(parts[3].replace(',', '.')) : null;
-
-        if (isNaN(lat) || isNaN(lon)) { errors++; continue; }
-        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) { errors++; continue; }
-
-        points.push({ date, lat, lon, alt, index: i + 1 });
+    // Tap sur la ligne → marker temporaire au point le plus proche
+    layers.line.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      let best = slim[0], bestD = Infinity;
+      for (const p of slim) {
+        const d = (p.lat - lat) ** 2 + (p.lon - lng) ** 2;
+        if (d < bestD) { bestD = d; best = p; }
       }
+      if (layers.temp) map.removeLayer(layers.temp);
+      layers.temp = mkMarker(best, 'gps-dot').addTo(map).openPopup();
+    });
 
-      return { points, errors };
-    }
-
-    // ── DECIMATION ────────────────────────────────────────────────────
-    // Réduit les points pour la polyline si trop nombreux
-    function decimateForPolyline(points, maxPoints = 4000) {
-      if (points.length <= maxPoints) return points;
-      const step = Math.ceil(points.length / maxPoints);
-      const result = points.filter((_, i) => i % step === 0);
-      // Toujours inclure le dernier point
-      if (result[result.length - 1] !== points[points.length - 1]) {
-        result.push(points[points.length - 1]);
-      }
-      return result;
-    }
-
-    // ── RENDER ────────────────────────────────────────────────────────
-    function renderPoints(points) {
-      // Clear
-      if (clusterGroup) { map.removeLayer(clusterGroup); clusterGroup = null; }
-      if (polyline) { map.removeLayer(polyline); polyline = null; }
-
-      if (!points.length) return;
-
-      // Polyline décimée pour la perf
-      const polyPoints = decimateForPolyline(points);
-      polyline = L.polyline(polyPoints.map(p => [p.lat, p.lon]), {
-        color: '#00d4ff',
-        weight: 2,
-        opacity: 0.5,
-        dashArray: '4 6',
-      }).addTo(map);
-
-      // Cluster group — chargement par lots non-bloquant
-      clusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 40,
-        disableClusteringAtZoom: 16,
-        spiderfyOnMaxZoom: true,
-        chunkedLoading: true,
-        chunkSize: 300,
-        chunkDelay: 20,
-      });
-
-      const total = points.length;
-      points.forEach((p, i) => {
-        const isFirst = i === 0;
-        const isLast  = i === total - 1;
-        const cls = isFirst ? 'gps-dot first' : isLast ? 'gps-dot last' : 'gps-dot';
-        const sz = isFirst || isLast ? 14 : 10;
-
-        const icon = L.divIcon({
-          className: '',
-          html: `<div class="${cls}"></div>`,
-          iconSize: [sz, sz],
-          iconAnchor: [sz/2, sz/2],
-        });
-
-        const altStr = p.alt !== null && !isNaN(p.alt) ? p.alt.toFixed(1) + ' m' : '—';
-
-        clusterGroup.addLayer(
-          L.marker([p.lat, p.lon], { icon }).bindPopup(`
-            <div class="popup-inner">
-              <div class="popup-date">${p.date}</div>
-              <div class="popup-row"><span class="popup-key">Latitude</span><span class="popup-val">${p.lat.toFixed(6)}</span></div>
-              <div class="popup-row"><span class="popup-key">Longitude</span><span class="popup-val">${p.lon.toFixed(6)}</span></div>
-              <div class="popup-row"><span class="popup-key">Altitude</span><span class="popup-val">${altStr}</span></div>
-              <div class="popup-row"><span class="popup-key">Point</span><span class="popup-val">#${p.index}</span></div>
-            </div>`, { maxWidth: 240 })
-        );
-      });
-
-      map.addLayer(clusterGroup);
-
-      // Fit bounds différé
-      setTimeout(() => {
-        try {
-          map.invalidateSize();
-          map.fitBounds(polyline.getBounds(), { padding: [40, 40], animate: false });
-        } catch(e) { console.warn('fitBounds error', e); }
-      }, 300);
-    }
-
-    // ── STATS BAR ─────────────────────────────────────────────────────
-    function updateStats(points) {
-      const dates = [...new Set(points.map(p => p.date))];
-      const alts = points.map(p => p.alt).filter(a => a !== null && !isNaN(a));
-      const minAlt = alts.length ? Math.min(...alts).toFixed(0) : '—';
-      const maxAlt = alts.length ? Math.max(...alts).toFixed(0) : '—';
-
-      const statsBar = document.getElementById('stats-bar');
-      statsBar.style.display = 'flex';
-      statsBar.innerHTML = `
-        <div class="stat">
-          <span class="stat-value">${points.length}</span>
-          <span class="stat-label">Points</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value">${dates.length}</span>
-          <span class="stat-label">Jours</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value">${minAlt}</span>
-          <span class="stat-label">Alt min (m)</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value">${maxAlt}</span>
-          <span class="stat-label">Alt max (m)</span>
-        </div>
-      `;
-
-      // Date filter chips
-      const filter = document.getElementById('date-filter');
-      const allDates = [...new Set(allPoints.map(p => p.date))].sort();
-
-      if (allDates.length > 1) {
-        filter.style.display = 'flex';
-        filter.innerHTML = `<button class="date-chip ${currentDate === 'all' ? 'active' : ''}" data-date="all">Tous</button>`;
-        allDates.forEach(d => {
-          filter.innerHTML += `<button class="date-chip ${currentDate === d ? 'active' : ''}" data-date="${d}">${d}</button>`;
-        });
-        filter.querySelectorAll('.date-chip').forEach(btn => {
-          btn.addEventListener('click', () => {
-            currentDate = btn.dataset.date;
-            const filtered = currentDate === 'all' ? allPoints : allPoints.filter(p => p.date === currentDate);
-            renderPoints(filtered);
-            updateStats(filtered);
-          });
-        });
-      }
-    }
-
-    // ── FILE INPUT ────────────────────────────────────────────────────
-    document.getElementById('fileInput').addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const loading = document.getElementById('loading');
-      loading.classList.add('show');
-
-      // Laisse le temps au spinner de s'afficher avant de bloquer le thread
-      await new Promise(r => setTimeout(r, 100));
-
+    setTimeout(() => {
       try {
-        const text = await file.text();
-        const { points, errors } = parseFile(text);
+        map.invalidateSize();
+        map.fitBounds(layers.line.getBounds(), { padding:[40,40], animate:false });
+      } catch(e) {}
+    }, 250);
+  }
 
-        if (!points.length) {
-          showToast('❌ Aucun point valide trouvé dans le fichier');
-          loading.classList.remove('show');
-          e.target.value = '';
-          return;
-        }
+  // ── STATS ─────────────────────────────────────────────────────────
+  function updateStats(pts) {
+    const days = new Set(pts.map(p => p.date)).size;
+    const alts = pts.map(p => p.alt).filter(a => a !== null && !isNaN(a));
+    document.getElementById('s-pts').textContent  = pts.length.toLocaleString('fr');
+    document.getElementById('s-days').textContent = days;
+    document.getElementById('s-amin').textContent = alts.length ? Math.min(...alts).toFixed(0) : '—';
+    document.getElementById('s-amax').textContent = alts.length ? Math.max(...alts).toFixed(0) : '—';
+  }
 
-        allPoints = points;
-        currentDate = 'all';
+  // ── FILTER ────────────────────────────────────────────────────────
+  function applyFilter() {
+    const from = document.getElementById('d-from').value;
+    const to   = document.getElementById('d-to').value;
+    const isFiltered = from !== dateMin || to !== dateMax;
 
-        renderPoints(allPoints);
-        updateStats(allPoints);
+    filtered = (from || to)
+      ? allPts.filter(p => (!from || p.date >= from) && (!to || p.date <= to))
+      : allPts;
 
-        // Hide placeholder & upload
-        document.getElementById('map-placeholder').style.display = 'none';
-        document.getElementById('upload-zone').style.display = 'none';
-        document.getElementById('btn-fit').style.display = 'flex';
-        document.getElementById('btn-reset').style.display = 'flex';
-        document.getElementById('header-sub').textContent = file.name.toUpperCase();
+    document.getElementById('btn-x').style.display = isFiltered ? 'block' : 'none';
+    render(filtered);
+    updateStats(filtered);
+    showToast(filtered.length
+      ? `${filtered.length.toLocaleString('fr')} points affichés`
+      : 'Aucun point dans cette période');
+  }
 
-        const msg = errors > 0
-          ? `✓ ${points.length} points (${errors} ignorés)`
-          : `✓ ${points.length} points chargés`;
-        showToast(msg);
+  document.getElementById('btn-ok').addEventListener('click', applyFilter);
 
-      } catch (err) {
-        showToast('❌ Erreur : ' + err.message);
-        console.error(err);
-      } finally {
-        loading.classList.remove('show');
-        e.target.value = '';
-        // Forcer Leaflet à recalculer la taille après changement de layout
-        setTimeout(() => map.invalidateSize(), 200);
-      }
-    });
+  document.getElementById('btn-x').addEventListener('click', () => {
+    document.getElementById('d-from').value = dateMin;
+    document.getElementById('d-to').value   = dateMax;
+    document.getElementById('btn-x').style.display = 'none';
+    filtered = allPts;
+    render(filtered);
+    updateStats(filtered);
+  });
 
-    // ── BUTTONS ───────────────────────────────────────────────────────
-    document.getElementById('btn-fit').addEventListener('click', () => {
-      if (polyline) map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
-    });
+  // ── FILE ──────────────────────────────────────────────────────────
+  document.getElementById('fi').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
 
-    document.getElementById('btn-reset').addEventListener('click', () => {
-      if (clusterGroup) { map.removeLayer(clusterGroup); clusterGroup = null; }
-      if (polyline) { map.removeLayer(polyline); polyline = null; }
-      allPoints = [];
-      currentDate = 'all';
+    document.getElementById('load-txt').textContent = 'Lecture du fichier…';
+    document.getElementById('load-pct').textContent = '';
+    document.getElementById('prog-bar').style.width = '0%';
+    document.getElementById('loading').classList.add('show');
+    await new Promise(r => setTimeout(r, 80));
 
-      document.getElementById('map-placeholder').style.display = 'flex';
-      document.getElementById('upload-zone').style.display = 'flex';
-      document.getElementById('stats-bar').style.display = 'none';
-      document.getElementById('date-filter').style.display = 'none';
-      document.getElementById('btn-fit').style.display = 'none';
-      document.getElementById('btn-reset').style.display = 'none';
-      document.getElementById('header-sub').textContent = 'AUCUN FICHIER CHARGÉ';
+    try {
+      const { pts, errors } = await parseChunked(file);
+      if (!pts.length) { showToast('Aucun point valide'); return; }
 
-      map.setView([46.5, 2.3], 5);
-    });
+      allPts = pts; filtered = pts;
+      const dates = [...new Set(pts.map(p => p.date))].sort();
+      dateMin = dates[0]; dateMax = dates[dates.length - 1];
+      document.getElementById('d-from').value = dateMin;
+      document.getElementById('d-to').value   = dateMax;
 
-    // ── TOAST ─────────────────────────────────────────────────────────
-    function showToast(msg) {
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 3000);
+      document.getElementById('upload-zone').style.display = 'none';
+      document.getElementById('stats-loaded').style.display = 'block';
+      document.getElementById('map-empty').style.display = 'none';
+      document.getElementById('btn-reset').style.display = 'flex';
+      document.getElementById('btn-fit').style.display = 'flex';
+      document.getElementById('nav-ph').style.display = 'none';
+      document.getElementById('nav-title').textContent = file.name.replace(/\.[^.]+$/, '');
+
+      updateStats(pts);
+      render(pts);
+      showToast(errors
+        ? `${pts.length.toLocaleString('fr')} points (${errors} ignorés)`
+        : `${pts.length.toLocaleString('fr')} points chargés`);
+
+    } catch(err) {
+      showToast('Erreur : ' + err.message);
+    } finally {
+      document.getElementById('loading').classList.remove('show');
+      setTimeout(() => map.invalidateSize(), 200);
     }
+  });
 
-    // ── SERVICE WORKER ────────────────────────────────────────────────
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
-  </script>
+  // ── RESET / FIT ───────────────────────────────────────────────────
+  document.getElementById('btn-fit').addEventListener('click', () => {
+    if (layers.line) map.fitBounds(layers.line.getBounds(), { padding:[40,40] });
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    clearLayers();
+    allPts = []; filtered = [];
+    document.getElementById('upload-zone').style.display = 'flex';
+    document.getElementById('stats-loaded').style.display = 'none';
+    document.getElementById('map-empty').style.display = 'flex';
+    document.getElementById('btn-reset').style.display = 'none';
+    document.getElementById('btn-fit').style.display = 'none';
+    document.getElementById('nav-ph').style.display = 'block';
+    document.getElementById('nav-title').textContent = 'GPS Track';
+    document.getElementById('btn-x').style.display = 'none';
+    map.setView([46.5, 2.3], 5);
+  });
+
+  // ── TOAST ─────────────────────────────────────────────────────────
+  let tt;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // ── SERVICE WORKER ────────────────────────────────────────────────
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+</script>
 </body>
 </html>
